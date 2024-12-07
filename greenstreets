@@ -1,0 +1,156 @@
+
+Greenstreets with map.ipynb
+Greenstreets with map.ipynb_
+
+[ ]
+import pandas as pd
+
+[ ]
+df = pd.read_csv('Greenstreets.csv')
+
+[ ]
+df.columns
+Index(['ACRES', 'BOROUGH', 'COMMISSIONDATE', 'COMMUNITYBOARD',
+       'COUNCILDISTRICT', 'DEPARTMENT', 'DESCRIPTION', 'FEATURESTATUS',
+       'GISPROPNUM', 'GSGROUP', 'GSTYPE', 'LOCATION', 'MOU', 'NYS_ASSEMBLY',
+       'NYS_SENATE', 'OMPPROPID', 'PARENTID', 'PRECINCT', 'SITENAME', 'STArea',
+       'STLength', 'SUBCATEGORY', 'SYSTEM', 'US_CONGRESS', 'ZIPCODE',
+       'multipolygon'],
+      dtype='object')
+
+[ ]
+df.shape
+(2753, 26)
+
+[ ]
+df.head()
+
+
+[ ]
+#Check for Greenstreets
+print(df['DESCRIPTION'].isna().sum())
+print((df['DESCRIPTION'] == "").sum())
+0
+0
+
+[ ]
+#Check for all invalid values in both acres and zipcode columns
+df_invalid = df[
+    df['ACRES'].isna() | (df['ACRES'] <= 0) | ~df['ACRES'].apply(lambda x: isinstance(x, (int, float)) and not pd.isna(x)) | (df['ACRES'] == '') |
+    df['ZIPCODE'].isna() | (df['ZIPCODE'] == 0) | ~df['ZIPCODE'].apply(lambda x: str(x).isdigit()) | (df['ZIPCODE'] == '')
+]
+
+print("Rows with invalid Acres or ZIPCODE values:")
+print(df_invalid[['ACRES', 'ZIPCODE']])
+
+print(f"\nNumber of rows with invalid Acres or ZIPCODE: {df_invalid.shape[0]}")
+
+Rows with invalid Acres or ZIPCODE values:
+         ACRES              ZIPCODE
+632   0.034391         11377, 11378
+809   0.008332         11432, 11433
+961   0.119891         11374, 11375
+1072  0.069322         11213, 11233
+1148  0.086223         11207, 11208
+1379  0.034699         10463, 10471
+1800  0.119379         11423, 11427
+1823  0.019118         11370, 11371
+1841  0.020756         11370, 11371
+1842  0.020843         11370, 11371
+1855  0.020318         11370, 11371
+1856  0.022438         11370, 11371
+1899  0.029911                  NaN
+1900  0.044952                  NaN
+1901  0.036727                  NaN
+1902  0.039310                  NaN
+1927  0.043888                 Null
+1930  0.237340                 Null
+1958  0.019172         11370, 11371
+1968  1.203357         10025, 10027
+1986  0.018848         11370, 11371
+1987  0.019955         11370, 11371
+2004  0.841732         10026, 10027
+2091  0.409322  10003, 10010, 10016
+2093  0.744071         11372, 11377
+2098  0.125355         10019, 10036
+2215  0.018504         10029, 10128
+2227  0.055231         10029, 10128
+2235  0.016675         11204, 11230
+2322  0.023432         10034, 10040
+2630  0.072907         11693, 11694
+
+Number of rows with invalid Acres or ZIPCODE: 31
+
+[ ]
+#Drop all invalid values in both columns
+df_cleaned = df[
+    ~(df['ACRES'].isna() | (df['ACRES'] <= 0) | ~df['ACRES'].apply(lambda x: isinstance(x, (int, float)) and not pd.isna(x)) | (df['ACRES'] == '') |
+    df['ZIPCODE'].isna() | (df['ZIPCODE'] == 0) | ~df['ZIPCODE'].apply(lambda x: str(x).isdigit()) | (df['ZIPCODE'] == '')
+    )]
+df_cleaned.shape
+(2722, 26)
+
+[ ]
+#Check for invalid values 
+df_check = df_cleaned[
+    df_cleaned['ACRES'].isna() | (df_cleaned['ACRES'] <= 0) | ~df_cleaned['ACRES'].apply(lambda x: isinstance(x, (int, float)) and not pd.isna(x)) | (df_cleaned['ACRES'] == '') |
+    df_cleaned['ZIPCODE'].isna() | (df_cleaned['ZIPCODE'] == 0) | ~df_cleaned['ZIPCODE'].apply(lambda x: str(x).isdigit()) | (df_cleaned['ZIPCODE'] == '')
+]
+print(df_check[['ACRES', 'ZIPCODE']])
+Empty DataFrame
+Columns: [ACRES, ZIPCODE]
+Index: []
+
+[ ]
+#NYC zipcodes range from 10001 to 11697 in five boroughs.
+nyc_zipcodes = [str(i) for i in range(10001, 11697)]
+Greenstreets_filtered = df_cleaned[df_cleaned['ZIPCODE'].isin(nyc_zipcodes)]
+
+Greenstreets_filtered.shape
+(2716, 26)
+
+[ ]
+Greenstreets_filtered.to_csv('Filtered_Greenstreets.csv', index=False)
+
+[ ]
+Greenstreets_filtered = Greenstreets_filtered.rename(columns={'ZIPCODE': 'zipcode'})
+Greenstreets_filtered.head(1)
+
+
+[ ]
+import geopandas as gpd
+import pandas as pd
+
+NYCzip = gpd.read_file("https://raw.githubusercontent.com/CUSP2020PUI/Data/master/NY.geojson")
+
+[ ]
+NYCzip['zipcode'] = NYCzip['zipcode'].astype(int)
+NYCzip.head()
+
+
+[ ]
+new = Greenstreets_filtered.groupby('zipcode').agg({'ACRES': 'sum','DESCRIPTION':'count'}).reset_index()
+new.head()
+
+
+[ ]
+#Merge cleaned data with zipcode, Acres, and count of greenstreet with shapefile
+NYCzip['zipcode'] = NYCzip['zipcode'].astype(str) 
+new['zipcode'] = new['zipcode'].astype(str)  
+
+merge_data = NYCzip.merge(new, left_on='zipcode', right_on='zipcode', how='left')
+
+merge_data.head()
+
+
+[ ]
+merge_data.dropna(subset=['ACRES', 'DESCRIPTION']).shape
+(175, 4)
+
+[ ]
+merge_data.plot(figsize=(6,6), column='DESCRIPTION', legend=True)
+
+
+[ ]
+merge_data.plot(figsize=(6,6), column='ACRES', legend=True)
+
